@@ -1,11 +1,2 @@
-The branch we are working on is:
-garden_start
-
-The garden_start branch is based on v4.3.3
-
-
-The garden_start should be our main branch.
-All branches should be from garden_start, and merged to garden_start.
-
 The repository on github.com is:
 https://github.com/strongjames/Garden.git
