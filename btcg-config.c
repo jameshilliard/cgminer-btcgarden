@@ -44,14 +44,14 @@ bool btcg_parse_opt() {
             applog( LOG_ERR, "A clock must be a positive integer");
             return false;
         }
+        g_config.core_clk_mhz = core_clk;
+        g_config.spi_clk_khz = spi_clk;
     }
     if (opt_btcg_only_allow_chips) {
         // TODO: parse only allow chips
         // ...
         // ...
     }
-    g_config.core_clk_mhz = core_clk;
-    g_config.spi_clk_khz = spi_clk;
     p_config = &g_config;
     return true;
 }
