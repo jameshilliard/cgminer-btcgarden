@@ -154,7 +154,7 @@ struct BTCG_chip {
 	uint32_t hw_errs;
     float ave_hw_errs;
 
-    uint64_t total_hibernate_ms;
+    unsigned long long total_hibernate_ms;
 };
 
 /**********************************************/
@@ -250,7 +250,7 @@ static inline bool CHIP_IS_WORK_TIMEOUT( const struct BTCG_chip *chip) {
 
 /* Show various info of a chip to LOG_ERR */
 static void CHIP_SHOW( const struct BTCG_chip *chip, bool show_work_info) {
-    applog(LOG_WARNING, "");
+    applog(LOG_WARNING, " ");
     applog(LOG_WARNING, "********** chip %u **********", chip->id);
     if (show_work_info) {
         applog(LOG_WARNING, "work: %p", chip->work);
