@@ -1,5 +1,5 @@
-#ifndef BTCG_H
-#define BTCG_H
+#ifndef BTCG_HW_CTRL_H
+#define BTCG_HW_CTRL_H
 
 #include "spi-context.h"
 
@@ -26,4 +26,4 @@ bool chip_write_job(struct spi_ctx *ctx, const uint8_t *midstate, const uint8_t 
 bool chip_read_nonce(struct spi_ctx *ctx, const unsigned int grp, uint32_t *nonce);
 bool chip_clean(struct spi_ctx *ctx);
 
-#endif  /* BTCG_H */
+#endif  /* BTCG_HW_CTRL_H */

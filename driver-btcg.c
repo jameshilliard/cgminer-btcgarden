@@ -21,6 +21,7 @@
 #include "miner.h"
 #include "util.h"
 
+#include "btcg-config.h"
 #include "btcg-hw-ctrl.h"
 
 ///////////////////////////////////////////////////////////////////////////
@@ -71,46 +72,6 @@ static struct work *wq_dequeue(struct work_queue *wq)
 	return work;
 }
 
-
-/********** global driver configuration */
-struct BTCG_config {
-    unsigned num_chips;
-
-    unsigned int spi_clk_khz;
-
-    unsigned int core_clk_mhz;
-
-    unsigned int work_timeout_ms;
-
-    /* When number of consecutive errors
-     * is larger than this number, the chip
-     * should goes to hibernate state.
-     */
-    unsigned int consecutive_err_threshold;
-    /* How many milliseconds should the chip hibernates,
-     * when the chip enters hibernate state.
-     */
-    unsigned int hibernate_time_ms;
-};
-
-struct BTCG_config g_config = {
-    .num_chips = 32,
-
-    .spi_clk_khz = 200,
-
-    .core_clk_mhz = 200,
-
-    // The min freq of the chip is 200MHz.
-    // With 32 cores each chip, the min hash rate is 6.4G/s.
-    // The full search space is 4G, so the max time is about
-    // 4G/(6.4G/s) = (4/6.4)s, which is less than 1s.
-    // Now, set the time out to 10s, the safe margin is large
-    // enough, and no too much failure messages.
-    .work_timeout_ms = 10 * 1000,
-
-    .consecutive_err_threshold = 15,
-    .hibernate_time_ms = 30 * 1000,
-};
 
 /********** chip and chain context structures */
 struct BTCG_chip {
@@ -215,8 +176,8 @@ static void __future_time(unsigned ms, struct timeval *tv) {
 
 static inline void CHIP_SET_HIBERNATE_DEADLINE(struct BTCG_chip *chip) {
     chip->consec_errs = 0;
-    __future_time( g_config.hibernate_time_ms, &chip->hibernate_deadline);
-    chip->total_hibernate_ms += g_config.hibernate_time_ms;
+    __future_time( btcg_config()->hibernate_time_ms, &chip->hibernate_deadline);
+    chip->total_hibernate_ms += btcg_config()->hibernate_time_ms;
 }
 
 static bool CHIP_IS_TIME_TO_WAKE_UP(struct BTCG_chip *chip) {
@@ -231,7 +192,7 @@ static void CHIP_NEW_WORK(struct cgpu_info *cgpu, struct BTCG_chip *chip, struct
     }
     chip->work = newwork;
     if (newwork) {
-        __future_time( g_config.work_timeout_ms, &chip->this_work_deadline);
+        __future_time( btcg_config()->work_timeout_ms, &chip->this_work_deadline);
         chip->total_works += 1;
     }
     else {
@@ -274,7 +235,7 @@ static void CHIP_SHOW( const struct BTCG_chip *chip, bool show_work_info) {
  * id: chip id
  */
 static bool init_a_chip( struct BTCG_chip *chip, struct spi_ctx *ctx, unsigned int id) {
-    if ( !chip_reset( ctx, g_config.core_clk_mhz)) {
+    if ( !chip_reset( ctx, btcg_config()->core_clk_mhz)) {
         applog(LOG_ERR, "Chip %u: failed to reset", id);
         return false;
     }
@@ -396,7 +357,7 @@ static struct BTCG_board *init_BTCG_board( struct cgpu_info *cgpu, struct spi_ct
 	applog(LOG_DEBUG, "BTCG init board");
 	memset(bd, 0, sizeof(*bd));
     bd->cgpu = cgpu;
-	bd->num_chips = g_config.num_chips;
+	bd->num_chips = btcg_config()->num_chips;
 	if (bd->num_chips == 0)
 		goto failure;
 	bd->spi_ctx = ctx;
@@ -535,14 +496,14 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
         case CHIP_STATE_RUN:
 
 #define __RESET_AND_GIVE_BACK_WORK()  do {          \
-    (void)chip_reset( ctx, g_config.core_clk_mhz);  \
+    (void)chip_reset( ctx, btcg_config()->core_clk_mhz);  \
     applog(LOG_DEBUG, "Chip %u: reset", chip->id);  \
     CHIP_NEW_WORK( cgpu, chip, NULL);               \
 } while(0)
 
 #define FIX_CHIP_ERR_MAY_GOING_HIBERNATE_AND_RETURN do {            \
     CHIP_INC_ERR(chip);                                             \
-    if (chip->consec_errs > g_config.consecutive_err_threshold) {   \
+    if (chip->consec_errs > btcg_config()->consecutive_err_threshold) {   \
         chip->state = CHIP_STATE_GOING_TO_HIBERNATE;                \
         applog(LOG_ERR,                                             \
                 "Chip %u: %u consecutive errors, "                  \
@@ -550,7 +511,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                 "Going to hibernate.",                              \
                 chip->id,                                           \
                 chip->consec_errs,                                  \
-                g_config.consecutive_err_threshold);                \
+                btcg_config()->consecutive_err_threshold);                \
     }                                                               \
     __RESET_AND_GIVE_BACK_WORK();                                   \
     return;                                                         \
@@ -658,6 +619,13 @@ void BTCG_detect(bool hotplug)
 	/* no hotplug support for now */
 	if (hotplug)
 		return;
+
+    if (!btcg_parse_opt()) {
+        applog(LOG_ERR, "Failed to parse BitCoin Garden options");
+        return;
+    }
+    applog(LOG_WARNING, "Core clock: %uMHz", btcg_config()->core_clk_mhz);
+    applog(LOG_WARNING, "SPI clock: %uKHz", btcg_config()->spi_clk_khz);
  
     if (!chip_selector_init()) {
         applog(LOG_ERR, "Failed to initialize chip selector");
@@ -667,7 +635,7 @@ void BTCG_detect(bool hotplug)
     /* SPI configuration */
     struct spi_config cfg = default_spi_config;
     cfg.mode = SPI_MODE_0;
-    cfg.speed = g_config.spi_clk_khz * 1000;
+    cfg.speed = btcg_config()->spi_clk_khz * 1000;
     cfg.delay = 30;         // TODO: may use default value
 
     struct spi_ctx *ctx = spi_init(&cfg);
@@ -753,7 +721,7 @@ static void BTCG_flush_work(struct cgpu_info *cgpu)
 	mutex_lock(&bd->lock);
 	/* Reset all chips first */
     for( i = 0; i < bd->num_chips; ++i) {
-        if ( !chip_select( i) || !chip_reset( bd->spi_ctx, g_config.core_clk_mhz)) {
+        if ( !chip_select( i) || !chip_reset( bd->spi_ctx, btcg_config()->core_clk_mhz)) {
             applog(LOG_ERR, "Chip %d: failed to abort work", i);
         }
     }
