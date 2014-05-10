@@ -1189,9 +1189,9 @@ static struct opt_table opt_config_table[] = {
     OPT_WITH_ARG("--btcg-clks",
              opt_set_charp, NULL, &opt_btcg_clks,
              "BitCoin Garden clock option core_clk_mhz:spi_clk_khz"),
-    OPT_WITH_ARG("--btcg-only-allow-chips",
-            opt_set_charp, NULL, &opt_btcg_only_allow_chips,
-            "BitCoin Garden only allow specified chips with comma separated list id0,id1,id2..."),
+    OPT_WITH_ARG("--btcg-only-enable-chips",
+            opt_set_charp, NULL, &opt_btcg_only_enable_chips,
+            "BitCoin Garden only enable selected chips with a comma separated list id0,id1,id2..."),
 #endif
 #ifdef USE_BITFURY
 	OPT_WITH_ARG("--bxf-bits",

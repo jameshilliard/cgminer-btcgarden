@@ -20,11 +20,16 @@ struct BTCG_config {
      * when the chip enters hibernate state.
      */
     unsigned int hibernate_time_ms;
+
+    /* An bool array with num_chips elements,
+     * which are enable mask of all chips.
+     */
+    bool *enabled_chips;
 };
 
 /* These two are used for command line options */
 extern char *opt_btcg_clks;
-extern char *opt_btcg_only_allow_chips;
+extern char *opt_btcg_only_enable_chips;
 
 /* Parse command options and set global config.
  * This is intended to be called at driver initialization time.
