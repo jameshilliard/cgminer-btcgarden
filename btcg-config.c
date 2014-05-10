@@ -5,6 +5,7 @@
 #include "logging.h"
 
 #include "btcg-config.h"
+#include "btcg-vector.h"
 
 
 char *opt_btcg_clks = NULL;
@@ -64,22 +65,16 @@ static bool parse_clks_opt() {
  * Return a pointer to a long array, and store number of elements in to n.
  */
 static const long* parse_num_list(const char *opt, size_t *n) {
-    static size_t max_elems = 2;
-    static long *nums = NULL;
-    nums = realloc( nums, max_elems * sizeof( long));
-    assert( nums);
+    static struct BTCG_vec *nums = NULL;
+    if ( nums == NULL) {
+        nums = BTCG_vec_open( sizeof( long));
+    }
 
     const char *nptr = opt;
     char *endptr = (char*)nptr;
 
     size_t i;
     for (i = 0; *endptr != '\0'; ++i) {
-        assert( i <= max_elems);
-        if ( i == max_elems) {
-            max_elems *= 2;
-            nums = realloc( nums, max_elems * sizeof(long));
-        }
-
         /* To distinguish failure after call */
         errno = 0;
         long ret = strtol( nptr, &endptr, 10);
@@ -103,11 +98,11 @@ static const long* parse_num_list(const char *opt, size_t *n) {
             applog( LOG_ERR, "Non-digit character encountered");
             return NULL;
         }
-        nums[i] = ret;
+        BTCG_vec_push_back( nums, &ret);
         nptr = endptr + 1;
     }
-    *n = i;
-    return nums;
+    *n = BTCG_vec_size( nums);
+    return BTCG_vec_size( nums) > 0 ? ((long*)BTCG_vec_at(nums, 0)) : NULL;
 }
 
 static bool parse_only_enable_chips_opt() {
