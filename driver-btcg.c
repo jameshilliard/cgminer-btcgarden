@@ -76,6 +76,7 @@ static struct work *wq_dequeue(struct work_queue *wq)
 /********** chip and chain context structures */
 struct BTCG_chip {
     unsigned int id;
+    bool enabled;
 
     /*******/
     /* FSM */
@@ -211,6 +212,10 @@ static inline bool CHIP_IS_WORK_TIMEOUT( const struct BTCG_chip *chip) {
 
 /* Show various info of a chip to LOG_ERR */
 static void CHIP_SHOW( const struct BTCG_chip *chip, bool show_work_info) {
+    // Show nothing for disabled chips
+    if ( !chip->enabled) {
+        return;
+    }
     applog(LOG_WARNING, " ");
     applog(LOG_WARNING, "********** chip %u **********", chip->id);
     if (show_work_info) {
@@ -241,6 +246,7 @@ static bool init_a_chip( struct BTCG_chip *chip, struct spi_ctx *ctx, unsigned i
     }
     memset(chip, 0, sizeof(*chip));
     chip->id = id;
+    chip->enabled = btcg_config()->enabled_chips[id];
     chip->state = CHIP_STATE_RUN;
     return true;
 }
@@ -383,6 +389,27 @@ static struct BTCG_board *init_BTCG_board( struct cgpu_info *cgpu, struct spi_ct
         }
     }
 
+    // Show enabled/disabled chips
+    {
+        char buf[1024];
+        size_t off = 0;
+        off += snprintf( buf, sizeof( buf), "Enabled chips: ");
+        bool id_printed = false;
+        for ( i = 0; i < bd->num_chips; ++i) {
+            assert( off < sizeof(buf));
+            if ( bd->chips[ i].enabled) {
+                if ( id_printed) {
+                    assert( off < sizeof(buf));
+                    off += snprintf( buf + off, sizeof( buf) - off, ", ");
+                }
+                assert( off < sizeof(buf));
+                off += snprintf( buf + off, sizeof( buf) - off, "%zu", i);
+                id_printed = true;
+            }
+        }
+        applog(LOG_WARNING, "%s", buf);
+    }
+
 	return bd;
 
 failure:
@@ -483,14 +510,20 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
 
     assert( id < bd->num_chips);
 
+    struct spi_ctx *ctx = bd->spi_ctx;
+    struct BTCG_chip *chip = bd->chips + id;
+    assert( chip);
+    // Do nothing for disabled chips
+    if ( !chip->enabled) {
+        assert( chip->work == NULL && chip->total_works == 0);
+        return;
+    }
+
     if ( !chip_select(id)) {
         applog(LOG_ERR, "Chip %u: failed to select chip", id);
         return;
     }
 
-    struct spi_ctx *ctx = bd->spi_ctx;
-    struct BTCG_chip *chip = bd->chips + id;
-    assert( chip);
 
     switch( chip->state) {
         case CHIP_STATE_RUN:
@@ -678,9 +711,6 @@ static int64_t BTCG_scanwork(struct thr_info *thr)
             break;
         }
         const unsigned int id = next_chip_id(bd);
-        if (id != 0 && id != 1 && id != 2 && id != 6 && id != 7 && id != 12 && id != 13) {
-            continue;
-        }
         may_submit_may_get_work(thr, id);
     } while(!board_queue_need_more_work(bd));
     
