@@ -23,6 +23,7 @@
 
 #include "btcg-config.h"
 #include "btcg-hw-ctrl.h"
+#include "btcg-vector.h"
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +98,9 @@ struct BTCG_chip {
      * the work is considered time out
      */
     struct timeval this_work_deadline;
-    unsigned int this_work_nonces;
+    /* Actual nonces that have been submitted by this work */
+    struct BTCG_vec *this_work_submitted_actual_nonces;
+    /* A mark that show w_allow has been pulled to low for this chip */
     bool this_work_w_allow_has_been_low;
 
     /*********************/
@@ -130,21 +133,35 @@ struct BTCG_chip {
     val = 0.0 + (val) / 2.0;            \
 } while(0)
 
-/* Operations on nonces_found */
-#define CHIP_INC_NONCE(chip)    do {    \
-    chip->this_work_nonces += 1;        \
-    chip->total_nonces += 1;            \
-} while(0)
-
 /* Operations on err */
-#define CHIP_INC_ERR(chip)  do {        \
-    chip->consec_errs += 1;             \
-    if (chip->max_consec_errs < chip->consec_errs) {    \
-        chip->max_consec_errs = chip->consec_errs;      \
-    }                                                   \
-    chip->hw_errs += 1;                 \
-    __CHIP_INC_AVE(chip->ave_hw_errs);  \
-} while(0)
+static void CHIP_WORK_DONE_WITH_ERR( struct BTCG_chip *chip) {
+    assert( chip->work != NULL);
+    if ( vec_size(chip->this_work_submitted_actual_nonces) > 0) {
+        chip->have_nonce_works += 1;
+    }
+    else {
+        chip->no_nonce_works += 1;
+    }
+
+    chip->consec_errs += 1;
+    if (chip->max_consec_errs < chip->consec_errs) {
+        chip->max_consec_errs = chip->consec_errs;
+    }
+    chip->hw_errs += 1;
+    __CHIP_INC_AVE(chip->ave_hw_errs);
+}
+
+static void CHIP_WORK_DONE_WITHOUT_ERR( struct BTCG_chip *chip) {
+    assert( chip->work != NULL);
+    if ( vec_size(chip->this_work_submitted_actual_nonces) > 0) {
+        chip->have_nonce_works += 1;
+    }
+    else {
+        chip->no_nonce_works += 1;
+    }
+    chip->consec_errs = 0;
+    __CHIP_DEC_AVE(chip->ave_hw_errs);
+}
 
 #define CHIP_WORK_DONE_WITH_NONCE(chip) do {    \
     assert( chip->work != NULL);                \
@@ -187,6 +204,19 @@ static bool CHIP_IS_TIME_TO_WAKE_UP(struct BTCG_chip *chip) {
     return timercmp( &chip->hibernate_deadline, &curtime, <);
 }
 
+/* Check if a nonce has been submitted.
+ */
+static bool CHIP_IS_DUPLICATED_NONCE( struct BTCG_chip *chip, uint32_t nonce) {
+    assert( chip->this_work_submitted_actual_nonces != NULL);
+    return vec_find_fst( chip->this_work_submitted_actual_nonces, &nonce) != VEC_NPOS;
+}
+
+static void CHIP_APPEND_SUBMITTED_NONCE( struct BTCG_chip *chip, uint32_t nonce) {
+    assert( chip->this_work_submitted_actual_nonces != NULL);
+    vec_push_back( chip->this_work_submitted_actual_nonces, &nonce);
+    chip->total_nonces += 1;
+}
+
 static void CHIP_NEW_WORK(struct cgpu_info *cgpu, struct BTCG_chip *chip, struct work *newwork) {
     if (chip->work) {
         work_completed( cgpu, chip->work);
@@ -199,7 +229,8 @@ static void CHIP_NEW_WORK(struct cgpu_info *cgpu, struct BTCG_chip *chip, struct
     else {
         timerclear( &chip->this_work_deadline);
     }
-    chip->this_work_nonces = 0;
+    assert( chip->this_work_submitted_actual_nonces != NULL);
+    vec_clear( chip->this_work_submitted_actual_nonces);
     chip->this_work_w_allow_has_been_low = false;
 }
 
@@ -220,7 +251,7 @@ static void CHIP_SHOW( const struct BTCG_chip *chip, bool show_work_info) {
     applog(LOG_WARNING, "********** chip %u **********", chip->id);
     if (show_work_info) {
         applog(LOG_WARNING, "work: %p", chip->work);
-        applog(LOG_WARNING, "this work nonces: %u", chip->this_work_nonces);
+        applog(LOG_WARNING, "this work nonces: %zu", vec_size( chip->this_work_submitted_actual_nonces));
         applog(LOG_WARNING, "this work w_allow has been low: %u", chip->this_work_w_allow_has_been_low);
     }
     applog(LOG_WARNING, "total works: %u", chip->total_works);
@@ -248,7 +279,13 @@ static bool init_a_chip( struct BTCG_chip *chip, struct spi_ctx *ctx, unsigned i
     chip->id = id;
     chip->enabled = btcg_config()->enabled_chips[id];
     chip->state = CHIP_STATE_RUN;
+    chip->this_work_submitted_actual_nonces = vec_open( sizeof(uint32_t));
     return true;
+}
+
+static void release_a_chip( struct BTCG_chip *chip) {
+    vec_close( chip->this_work_submitted_actual_nonces);
+    chip->this_work_submitted_actual_nonces = NULL;
 }
 
 
@@ -422,23 +459,48 @@ failure:
     return NULL;
 }
 
-static bool submit_a_nonce(struct thr_info *thr, struct work *work,
+static bool submit_a_nonce(struct thr_info *thr, struct BTCG_chip *chip,
         const uint32_t nonce, uint32_t *actual_nonce) {
     assert( actual_nonce);
     const uint32_t nonce_candies[] = {
        nonce + 1, nonce + 2, nonce + 3, nonce + 4,
        nonce - 4, nonce - 3, nonce - 2, nonce - 1, nonce};
 
+    struct work *work = chip->work;
+
+    bool has_nonce = false;
+    bool has_dup_nonce = false;
     size_t i;
     for ( i = 0; i < sizeof( nonce_candies) / sizeof( nonce_candies[0]); ++i) {
         const uint32_t a_nonce = nonce_candies[i];
         if (!test_nonce( work, a_nonce)) {
             continue;
         }
+        if (CHIP_IS_DUPLICATED_NONCE( chip, a_nonce)) {
+            applog( LOG_ERR, "Chip %u: duplicated nonce %u, actual duplicated nonce %u", chip->id, nonce, a_nonce);
+            has_dup_nonce = true;
+            continue;
+        }
         if (submit_nonce( thr, work, a_nonce)) {
             *actual_nonce = a_nonce;
-            return true;
+            applog(LOG_DEBUG, "Chip %u: submit nonce ok, nonce %u, actual nonce %u",
+                    chip->id, nonce, a_nonce);
+            CHIP_APPEND_SUBMITTED_NONCE( chip, a_nonce);
+            has_nonce = true;
+            break;
         }
+    }
+
+    /* has_nonce has_dup_nonce return
+     *     Y          N         true 
+     *     Y          Y         false
+     *     N          x         false
+     */
+    if ( has_nonce && !has_dup_nonce) {
+        return true;
+    }
+    if ( !has_nonce) {
+        chip->local_rejected_nonces += 1;
     }
     inc_hw_errors( thr);
     return false;
@@ -489,16 +551,10 @@ static bool submit_ready_nonces( struct thr_info *thr, struct BTCG_chip *chip, c
 
         // submit nonce
         uint32_t actual_nonce;
-        if (!submit_a_nonce( thr, chip->work, nonce, &actual_nonce)) {
-            applog(LOG_ERR, "Chip %u: failed to submit nonce %u from nonce group %d",
+        if (!submit_a_nonce( thr, chip, nonce, &actual_nonce)) {
+            applog(LOG_ERR, "Chip %u: error encountered while submitting nonce %u from nonce group %d",
                      chip->id, nonce, grps[i]);
-            chip->local_rejected_nonces += 1;
             all_submit_succ = false;
-        }
-        else {
-            CHIP_INC_NONCE(chip);
-            applog(LOG_DEBUG, "Chip %u: submit nonce ok, nonce %u, actual nonce %u",
-                    chip->id, nonce, actual_nonce);
         }
     }
     return all_submit_succ;
@@ -535,7 +591,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
 } while(0)
 
 #define FIX_CHIP_ERR_MAY_GOING_HIBERNATE_AND_RETURN do {            \
-    CHIP_INC_ERR(chip);                                             \
+    CHIP_WORK_DONE_WITH_ERR(chip);                                  \
     if (chip->consec_errs > btcg_config()->consecutive_err_threshold) {   \
         chip->state = CHIP_STATE_GOING_TO_HIBERNATE;                \
         applog(LOG_ERR,                                             \
@@ -577,10 +633,10 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
 
                 if (STATUS_W_ALLOW(status)) {
                     assert( chip->work);
-                    if (chip->this_work_nonces == 0) {
+                    if (vec_size( chip->this_work_submitted_actual_nonces) == 0) {
                         // Without nonce
                         if ( chip->this_work_w_allow_has_been_low) {
-                            CHIP_WORK_DONE_WITHOUT_NONCE( chip);
+                            CHIP_WORK_DONE_WITHOUT_ERR( chip);
                             CHIP_NEW_WORK( cgpu, chip, NULL);
                         }
                         else {
@@ -591,7 +647,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                     }
                     else {
                         // With nonce
-                        CHIP_WORK_DONE_WITH_NONCE( chip);
+                        CHIP_WORK_DONE_WITHOUT_ERR( chip);
                         CHIP_NEW_WORK( cgpu, chip, NULL);
                     }
                 }
@@ -787,6 +843,12 @@ static void BTCG_thread_shutdown(struct thr_info *thr) {
 	mutex_lock(&bd->lock);
     for ( i = 0; i < bd->num_chips; ++i) {
         CHIP_SHOW( bd->chips + i, false);
+    }
+
+    /* release all chips */
+    for ( i = 0; i < bd->num_chips; ++i) {
+        struct BTCG_chip *chip = bd->chips + i;
+        release_a_chip( chip);
     }
 	mutex_unlock(&bd->lock);
 }

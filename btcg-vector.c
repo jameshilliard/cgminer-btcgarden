@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <assert.h>
 
 #include "btcg-vector.h"
@@ -46,6 +47,31 @@ void vec_push_back( struct BTCG_vec *v, void *new_elem) {
 void* vec_at( const struct BTCG_vec *v, size_t n) {
     assert( n < v->elem_num);
     return v->buf + v->elem_size * n;
+}
+
+/* Find element with size 4 */
+static inline size_t __find_elem_4( const struct BTCG_vec *v, const void *elem) {
+    assert( v->elem_size == 4);
+    assert( sizeof(uint32_t) == 4);
+
+    const uint32_t *p = (const uint32_t *)(v->buf);
+    const uint32_t elem_4 = *((uint32_t*)elem);
+    size_t i;
+    for ( i = 0; i < v->elem_num; ++i) {
+        assert( (void*)(p + i) <= v->buf + v->buf_size - 4);
+        if ( *(p + i) == elem_4) {
+            return i;
+        }
+    }
+    return VEC_NPOS;
+}
+
+size_t vec_find_fst( const struct BTCG_vec *v, const void *elem) {
+    if ( v->elem_size == 4) {
+        return __find_elem_4( v, elem);
+    }
+    assert(0 && "Only support find elements whose element size is 4");
+    return VEC_NPOS;
 }
 
 /* Get number of elements from the vector */

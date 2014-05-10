@@ -19,6 +19,14 @@ void vec_push_back( struct BTCG_vec *v, void *new_elem);
 /* Get an element from the vector */
 void* vec_at( const struct BTCG_vec *v, size_t n);
 
+#define VEC_NPOS ((size_t)(-1))
+/* Find the index of an element, where the element first appear
+ * in a vector.
+ * Return the index of the element, when the element exists,
+ * otherwise, return VEC_NPOS
+ */
+size_t vec_find_fst( const struct BTCG_vec *v, const void *elem);
+
 /* Get number of elements from the vector */
 size_t vec_size( const struct BTCG_vec *v);
 
