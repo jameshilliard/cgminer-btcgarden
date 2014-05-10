@@ -22,9 +22,9 @@ static struct BTCG_config g_config = {
     // With 32 cores each chip, the min hash rate is 6.4G/s.
     // The full search space is 4G, so the max time is about
     // 4G/(6.4G/s) = (4/6.4)s, which is less than 1s.
-    // Now, set the time out to 10s, the safe margin is large
+    // Now, set the time out to 2s, the safe margin is large
     // enough, and no too much failure messages.
-    .work_timeout_ms = 10 * 1000,
+    .work_timeout_ms = 2 * 1000,
 
     .consecutive_err_threshold = 15,
     .hibernate_time_ms = 30 * 1000,
@@ -149,6 +149,7 @@ bool btcg_parse_opt() {
 
     // Initialize g_config first.
     const size_t enabled_chips_size = sizeof( bool) * g_config.num_chips;
+    assert( g_config.enabled_chips == NULL);
     g_config.enabled_chips = malloc( enabled_chips_size);
     assert( g_config.enabled_chips);
     memset( g_config.enabled_chips, 0, enabled_chips_size);

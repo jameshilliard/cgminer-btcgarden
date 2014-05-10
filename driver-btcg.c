@@ -741,8 +741,8 @@ void BTCG_detect(bool hotplug)
         return;
 
     memset(cgpu, 0, sizeof(*cgpu));
-    cgpu->drv = &bitmineA1_drv;
-    cgpu->name = "BitmineA1";
+    cgpu->drv = &btcg_drv;
+    cgpu->name = "BitCoinGarden";
     cgpu->threads = 1;
     cgpu->device_data = bd;
 
@@ -853,7 +853,7 @@ static void BTCG_thread_shutdown(struct thr_info *thr) {
 	mutex_unlock(&bd->lock);
 }
 
-struct device_drv bitmineA1_drv = {
+struct device_drv btcg_drv = {
 	.drv_id = DRIVER_btcg,
 	.dname = "BitCoinGarden",
 	.name = "BTCG",
