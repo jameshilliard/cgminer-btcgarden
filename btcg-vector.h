@@ -10,19 +10,19 @@ struct BTCG_vec {
 };
 
 /* Return NULL on error */
-struct BTCG_vec* BTCG_vec_open( size_t elem_size);
-void BTCG_vec_close( struct BTCG_vec *v);
+struct BTCG_vec* vec_open( size_t elem_size);
+void vec_close( struct BTCG_vec *v);
 
 /* Add a new element into the vector */
-void BTCG_vec_push_back( struct BTCG_vec *v, void *new_elem);
+void vec_push_back( struct BTCG_vec *v, void *new_elem);
 
 /* Get an element from the vector */
-void* BTCG_vec_at( const struct BTCG_vec *v, size_t n);
+void* vec_at( const struct BTCG_vec *v, size_t n);
 
 /* Get number of elements from the vector */
-size_t BTCG_vec_size( const struct BTCG_vec *v);
+size_t vec_size( const struct BTCG_vec *v);
 
 /* Clear contents of the vector */
-void BTCG_vec_clear( struct BTCG_vec *v);
+void vec_clear( struct BTCG_vec *v);
 
 #endif

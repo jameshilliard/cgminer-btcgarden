@@ -67,7 +67,7 @@ static bool parse_clks_opt() {
 static const long* parse_num_list(const char *opt, size_t *n) {
     static struct BTCG_vec *nums = NULL;
     if ( nums == NULL) {
-        nums = BTCG_vec_open( sizeof( long));
+        nums = vec_open( sizeof( long));
     }
 
     const char *nptr = opt;
@@ -98,11 +98,11 @@ static const long* parse_num_list(const char *opt, size_t *n) {
             applog( LOG_ERR, "Non-digit character encountered");
             return NULL;
         }
-        BTCG_vec_push_back( nums, &ret);
+        vec_push_back( nums, &ret);
         nptr = endptr + 1;
     }
-    *n = BTCG_vec_size( nums);
-    return BTCG_vec_size( nums) > 0 ? ((long*)BTCG_vec_at(nums, 0)) : NULL;
+    *n = vec_size( nums);
+    return vec_size( nums) > 0 ? ((long*)vec_at(nums, 0)) : NULL;
 }
 
 static bool parse_only_enable_chips_opt() {
