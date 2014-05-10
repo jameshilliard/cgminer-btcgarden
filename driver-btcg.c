@@ -560,7 +560,10 @@ static bool submit_ready_nonces( struct thr_info *thr, struct BTCG_chip *chip, c
     return all_submit_succ;
 }
 
-static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
+/* Return number of success works */
+static unsigned int may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
+    unsigned int num_succ_works = 0;
+
     struct cgpu_info *cgpu = thr->cgpu;
     struct BTCG_board *bd = cgpu->device_data;
 
@@ -572,12 +575,12 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
     // Do nothing for disabled chips
     if ( !chip->enabled) {
         assert( chip->work == NULL && chip->total_works == 0);
-        return;
+        return num_succ_works;
     }
 
     if ( !chip_select(id)) {
         applog(LOG_ERR, "Chip %u: failed to select chip", id);
-        return;
+        return num_succ_works;
     }
 
 
@@ -600,10 +603,10 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                 "Going to hibernate.",                              \
                 chip->id,                                           \
                 chip->consec_errs,                                  \
-                btcg_config()->consecutive_err_threshold);                \
+                btcg_config()->consecutive_err_threshold);          \
     }                                                               \
     __RESET_AND_GIVE_BACK_WORK();                                   \
-    return;                                                         \
+    return num_succ_works;                                          \
 } while(0)
 
             if ( chip->work) {
@@ -638,6 +641,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                         if ( chip->this_work_w_allow_has_been_low) {
                             CHIP_WORK_DONE_WITHOUT_ERR( chip);
                             CHIP_NEW_WORK( cgpu, chip, NULL);
+                            num_succ_works += 1;
                         }
                         else {
                             applog(LOG_ERR, "Chip %u: No w_allow low level detected, and no nonce calculated for work %p",
@@ -649,6 +653,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                         // With nonce
                         CHIP_WORK_DONE_WITHOUT_ERR( chip);
                         CHIP_NEW_WORK( cgpu, chip, NULL);
+                        num_succ_works += 1;
                     }
                 }
                 else {
@@ -661,7 +666,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                     }
                     else {
                         assert( STATUS_R_READY( status) || STATUS_BUSY( status));
-                        return;
+                        return num_succ_works;
                     }
                 }
             }
@@ -670,7 +675,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
                 struct work *new_work = wq_dequeue(&bd->active_wq);
                 if (new_work == NULL) {
                     applog(LOG_ERR, "queue under flow");
-                    return;
+                    return num_succ_works;
                 }
                 CHIP_NEW_WORK( cgpu, chip, new_work);
                 applog(LOG_DEBUG, "Chip %u: new work %p", id, chip->work);
@@ -698,7 +703,7 @@ static void may_submit_may_get_work(struct thr_info *thr, unsigned int id) {
             break;
     }   // End of switch( chip->state)
 
-    return;
+    return num_succ_works;
 }
 
 
@@ -757,6 +762,7 @@ static int64_t BTCG_scanwork(struct thr_info *thr)
 {
     struct cgpu_info *cgpu = thr->cgpu;
     struct BTCG_board *bd = cgpu->device_data;
+    int64_t hashes = 0;
 
     applog(LOG_DEBUG, "BTCG running scanwork");
     mutex_lock(&bd->lock);
@@ -767,13 +773,13 @@ static int64_t BTCG_scanwork(struct thr_info *thr)
             break;
         }
         const unsigned int id = next_chip_id(bd);
-        may_submit_may_get_work(thr, id);
+        unsigned int num_succ_works = may_submit_may_get_work(thr, id);
+        hashes += 0xffffffffULL * num_succ_works;
     } while(!board_queue_need_more_work(bd));
     
     mutex_unlock(&bd->lock);
     
-    // TODO: SHOULD RETURN (int64_t)(number of hashes done)
-    return 0;
+    return hashes;
 }
 
 
