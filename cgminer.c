@@ -80,6 +80,10 @@ char *curly = ":D";
 #include "driver-spondoolies.h"
 #endif
 
+#ifdef USE_BTCG
+#include "btcg-config.h"
+#endif
+
 
 #ifdef USE_BITFURY
 #include "driver-bitfury.h"
@@ -1181,6 +1185,14 @@ static struct opt_table opt_config_table[] = {
 		     opt_set_charp, NULL, &opt_bitmine_a1_options,
 		     "Bitmine A1 options ref_clk_khz:sys_clk_khz:spi_clk_khz:override_chip_num"),
 #endif
+#ifdef USE_BTCG
+    OPT_WITH_ARG("--btcg-clks",
+             opt_set_charp, NULL, &opt_btcg_clks,
+             "BitCoin Garden clock option core_clk_mhz:spi_clk_khz"),
+    OPT_WITH_ARG("--btcg-only-enable-chips",
+            opt_set_charp, NULL, &opt_btcg_only_enable_chips,
+            "BitCoin Garden only enable selected chips with a comma separated list id0,id1,id2..."),
+#endif
 #ifdef USE_BITFURY
 	OPT_WITH_ARG("--bxf-bits",
 		     set_int_32_to_63, opt_show_intval, &opt_bxf_bits,
@@ -1658,6 +1670,9 @@ static char *opt_verusage_and_exit(const char *extra)
 #endif
 #ifdef USE_SPONDOOLIES
 		"spondoolies "
+#endif
+#ifdef USE_BTCG
+        "BitCoin Garden "
 #endif
 		"mining support.\n"
 		, packagename);

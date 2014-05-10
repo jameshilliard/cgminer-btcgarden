@@ -112,6 +112,12 @@ cgminer_SOURCES += driver-spondoolies.c driver-spondoolies.h \
 		   mg_proto_parser.c mg_proto_parser.h
 endif
 
+if HAS_BTCG
+cgminer_SOURCES += btcg-config.c btcg-config.h
+cgminer_SOURCES += driver-btcg.c btcg-hw-ctrl.c btcg-hw-ctrl.h
+cgminer_SOURCES += spi-context.c spi-context.h
+endif
+
 if HAS_BAB
 cgminer_SOURCES += driver-bab.c
 endif

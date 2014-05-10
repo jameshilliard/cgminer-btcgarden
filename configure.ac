@@ -311,6 +311,19 @@ fi
 AM_CONDITIONAL([HAS_SPONDOOLIES], [test x$spondoolies = xyes])
 
 
+
+btcg="no"
+
+AC_ARG_ENABLE([btcg],
+	[AC_HELP_STRING([--enable-btcg],[Compile support for BitCoin Garden ASICs (default disabled)])],
+	[btcg=$enableval]
+	)
+if test "x$btcg" = xyes; then
+	AC_DEFINE([USE_BTCG], [1], [Defined to 1 if BitCoin Garden support is wanted])
+fi
+AM_CONDITIONAL([HAS_BTCG], [test x$btcg = xyes])
+
+
 curses="auto"
 
 AC_ARG_WITH([curses],
@@ -575,6 +588,12 @@ else
 	echo "  Spondoolies.ASICs....: Disabled"
 fi
 
+if test "x$btcg" = xyes; then
+	echo "  BitCoinGarden.ASICs..: Enabled"
+else
+	echo "  BitCoinGarden.ASICs..: Disabled"
+fi
+
 if test "x$bitmine_A1" = xyes; then
 	echo "  Bitmine-A1.ASICs.....: Enabled"
 else
@@ -617,7 +636,7 @@ else
 	echo "  ModMiner.FPGAs.......: Disabled"
 fi
 
-if test "x$avalon$avalon2$bab$bflsc$bitforce$bitfury$hashfast$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$spondoolies" = xnonononononononononononononononono; then
+if test "x$avalon$avalon2$bab$bflsc$bitforce$bitfury$hashfast$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$spondoolies$btcg" = xnononononononononononononononononono; then
 	AC_MSG_ERROR([No mining configured in])
 fi
 
