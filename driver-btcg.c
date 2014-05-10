@@ -666,24 +666,28 @@ void BTCG_detect(bool hotplug)
 
 static int64_t BTCG_scanwork(struct thr_info *thr)
 {
-	struct BTCG_board *bd = thr->cgpu->device_data;
+    struct cgpu_info *cgpu = thr->cgpu;
+    struct BTCG_board *bd = cgpu->device_data;
 
-	applog(LOG_DEBUG, "BTCG running scanwork");
-	mutex_lock(&bd->lock);
+    applog(LOG_DEBUG, "BTCG running scanwork");
+    mutex_lock(&bd->lock);
 
-	struct work *work;
+    struct work *work;
     do {
+        if (cgpu->shutdown) {
+            break;
+        }
         const unsigned int id = next_chip_id(bd);
         if (id != 0 && id != 1 && id != 2 && id != 6 && id != 7 && id != 12 && id != 13) {
             continue;
         }
         may_submit_may_get_work(thr, id);
     } while(!board_queue_need_more_work(bd));
-	
-	mutex_unlock(&bd->lock);
-	
+    
+    mutex_unlock(&bd->lock);
+    
     // TODO: SHOULD RETURN (int64_t)(number of hashes done)
-	return 0;
+    return 0;
 }
 
 
