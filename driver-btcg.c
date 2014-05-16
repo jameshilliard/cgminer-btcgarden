@@ -587,7 +587,7 @@ static unsigned int may_submit_may_get_work(struct thr_info *thr, unsigned int i
     switch( chip->state) {
         case CHIP_STATE_RUN:
 
-#define __RESET_AND_GIVE_BACK_WORK()  do {          \
+#define RESET_AND_GIVE_BACK_WORK()  do {          \
     (void)chip_reset( ctx, btcg_config()->core_clk_mhz);  \
     applog(LOG_DEBUG, "Chip %u: reset", chip->id);  \
     CHIP_NEW_WORK( cgpu, chip, NULL);               \
@@ -605,7 +605,7 @@ static unsigned int may_submit_may_get_work(struct thr_info *thr, unsigned int i
                 chip->consec_errs,                                  \
                 btcg_config()->consecutive_err_threshold);          \
     }                                                               \
-    __RESET_AND_GIVE_BACK_WORK();                                   \
+    RESET_AND_GIVE_BACK_WORK();                                     \
     return num_succ_works;                                          \
 } while(0)
 
@@ -640,7 +640,7 @@ static unsigned int may_submit_may_get_work(struct thr_info *thr, unsigned int i
                         // Without nonce
                         if ( chip->this_work_w_allow_has_been_low) {
                             CHIP_WORK_DONE_WITHOUT_ERR( chip);
-                            CHIP_NEW_WORK( cgpu, chip, NULL);
+                            RESET_AND_GIVE_BACK_WORK();
                             num_succ_works += 1;
                         }
                         else {
@@ -652,7 +652,7 @@ static unsigned int may_submit_may_get_work(struct thr_info *thr, unsigned int i
                     else {
                         // With nonce
                         CHIP_WORK_DONE_WITHOUT_ERR( chip);
-                        CHIP_NEW_WORK( cgpu, chip, NULL);
+                        RESET_AND_GIVE_BACK_WORK();
                         num_succ_works += 1;
                     }
                 }
