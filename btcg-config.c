@@ -33,6 +33,16 @@ static struct BTCG_config g_config = {
     .enabled_chips = NULL,
 };
 
+static void update_work_timeout() {
+#define HASH_NUM_EACH_CORE (1 << 27)
+    unsigned int actual_timeout_ms = HASH_NUM_EACH_CORE / g_config.core_clk_mhz / 1000;
+    /* 
+     * Give another 20% safe margin.
+     * I think this is enough.
+     */
+    g_config.work_timeout_ms = (unsigned int)(actual_timeout_ms * 1.2);
+}
+
 static struct BTCG_config *p_config = NULL;
 
 static bool parse_clks_opt() {
@@ -156,14 +166,18 @@ bool btcg_parse_opt() {
 
     succ &= parse_clks_opt();
     succ &= parse_only_enable_chips_opt();
-    if ( succ) {
-        p_config = &g_config;
+    if (!succ) {
+        goto fail;
     }
-    else {
-        free( g_config.enabled_chips);
-        g_config.enabled_chips = NULL;
-    }
-    return succ;
+
+    update_work_timeout();
+    p_config = &g_config;
+    return true;
+
+fail:
+    free( g_config.enabled_chips);
+    g_config.enabled_chips = NULL;
+    return false;
 }
 
 const struct BTCG_config *btcg_config() {

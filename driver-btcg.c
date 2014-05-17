@@ -720,6 +720,7 @@ void BTCG_detect(bool hotplug)
     }
     applog(LOG_WARNING, "Core clock: %uMHz", btcg_config()->core_clk_mhz);
     applog(LOG_WARNING, "SPI clock: %uKHz", btcg_config()->spi_clk_khz);
+    applog(LOG_WARNING, "Work timeout threshold: %ums", btcg_config()->work_timeout_ms);
  
     if (!chip_selector_init()) {
         applog(LOG_ERR, "Failed to initialize chip selector");
