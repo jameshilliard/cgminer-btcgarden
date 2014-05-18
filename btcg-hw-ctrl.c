@@ -131,7 +131,7 @@ bool chip_write_job(struct spi_ctx *ctx, const uint8_t *midstate, const uint8_t 
     uint8_t *tx = __create_job( midstate, wdata);
     assert( tx);
     uint8_t dummy[JOB_LENGTH];
-#if 0
+#if 1
     return spi_transfer(ctx, tx, dummy, JOB_LENGTH);
 #else
     size_t i = 0;
@@ -165,7 +165,7 @@ static bool __chip_read_nonce(struct spi_ctx *ctx, const unsigned int grp, uint3
     tx[4] = CMD_RD | base + 2;
     tx[6] = CMD_RD | base + 3;
 
-#if 0
+#if 1
     if (!spi_transfer( ctx, tx, rx, sizeof(tx))) {
         return false;
     }
@@ -190,6 +190,9 @@ static bool __chip_read_nonce(struct spi_ctx *ctx, const unsigned int grp, uint3
 }
 
 bool chip_read_nonce(struct spi_ctx *ctx, const unsigned int grp, uint32_t *nonce) {
+#if 1
+   return __chip_read_nonce( ctx, grp, nonce);
+#else
     uint32_t nonce0;
     uint32_t nonce1;
 
@@ -213,6 +216,7 @@ bool chip_read_nonce(struct spi_ctx *ctx, const unsigned int grp, uint32_t *nonc
         return true;
     }
     return false;
+#endif
 }
 
 bool chip_clean(struct spi_ctx *ctx) {
@@ -315,7 +319,6 @@ bool chip_selector_init(void) {
 }
 
 bool chip_select(uint8_t n) {
-	usleep(1500);
     int ret = write(fp_uart , &n , 1);
     usleep( 800);
     return ret == 1;
