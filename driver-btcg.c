@@ -731,7 +731,7 @@ void BTCG_detect(bool hotplug)
     struct spi_config cfg = default_spi_config;
     cfg.mode = SPI_MODE_0;
     cfg.speed = btcg_config()->spi_clk_khz * 1000;
-    cfg.delay = 30;         // TODO: may use default value
+    cfg.delay = 10;         // TODO: may use default value
 
     struct spi_ctx *ctx = spi_init(&cfg);
     if (ctx == NULL) {
