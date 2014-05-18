@@ -81,6 +81,23 @@ bool chip_reset(struct spi_ctx *ctx, unsigned clk_core) {
     return __chip_sw_reset(ctx) && __chip_set_pll(ctx, clk_core);
 }
 
+#if 1
+/* Only the least 6-bits of a status register are valid */
+#define STATUS_MASK 0x3f
+bool chip_status(struct spi_ctx *ctx, uint8_t *status) {
+    uint8_t tx;
+    uint8_t rx;
+
+    tx = CMD_CK;
+
+    if (!spi_transfer(ctx, &tx, &rx, 1)) {
+        return false;
+    }
+    *status = rx & STATUS_MASK;
+    return true;
+}
+#undef STATUS_MASK
+#else
 bool chip_status(struct spi_ctx *ctx, uint8_t *status) {
     uint8_t tx[2];
     uint8_t rx[2];
@@ -94,6 +111,7 @@ bool chip_status(struct spi_ctx *ctx, uint8_t *status) {
     *status = rx[1];
     return true;
 }
+#endif
 
 
 #define JOB_LENGTH 90
